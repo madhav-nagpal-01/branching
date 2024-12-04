@@ -11,28 +11,55 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
+      
+      - name: Debug Info
+        run: |
+          echo "DEBUG: Event name = ${{ github.event_name }}"
+          echo "DEBUG: Base ref = ${{ github.base_ref }}"
+          echo "DEBUG: Head ref = ${{ github.head_ref }}"
+          echo "DEBUG: Ref = ${{ github.ref }}"
+          echo "DEBUG: Repository = ${{ github.repository }}"
       
       - name: Check branch state
         run: |
-          case "${{ github.ref }}" in
-            refs/heads/development)
+          BASE_BRANCH="${{ github.base_ref }}"
+          HEAD_BRANCH="${{ github.head_ref }}"
+          echo "DEBUG: Base branch = $BASE_BRANCH"
+          echo "DEBUG: Head branch = $HEAD_BRANCH"
+          
+          case "$BASE_BRANCH" in
+            "development")
               upstream_branch="qa"
               ;;
-            refs/heads/qa)
+            "qa")
               upstream_branch="staging"
               ;;
-            refs/heads/staging)
+            "staging")
               upstream_branch="master"
               ;;
-            refs/heads/master)
+            "master")
               upstream_branch=""
               ;;
           esac
           
+          echo "DEBUG: Upstream branch = $upstream_branch"
+          
           if [ ! -z "$upstream_branch" ]; then
+            echo "DEBUG: Fetching upstream branch $upstream_branch"
             git fetch origin $upstream_branch
-            if ! git diff --quiet origin/$upstream_branch; then
-              echo "ERROR: Branch content differs from $upstream_branch"
+            echo "DEBUG: Fetch exit code = $?"
+            
+            echo "DEBUG: Running diff check"
+            git diff --quiet origin/$upstream_branch HEAD
+            DIFF_RESULT=$?
+            echo "DEBUG: diff exit code = $DIFF_RESULT"
+            
+            if [ $DIFF_RESULT -ne 0 ]; then
+              echo "ERROR: Your branch ($HEAD_BRANCH) has content differences with $upstream_branch"
+              echo "Please run: git pull origin $upstream_branch"
+              echo "Different files:"
+              git diff --name-status origin/$upstream_branch HEAD
               exit 1
             fi
-          fi 
+          fi

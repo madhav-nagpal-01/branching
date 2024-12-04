@@ -12,32 +12,62 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}  # Checkout the PR branch
           token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Debug Info
+        run: |
+          echo "DEBUG: Event name = ${{ github.event_name }}"
+          echo "DEBUG: Base ref = ${{ github.base_ref }}"
+          echo "DEBUG: Head ref = ${{ github.head_ref }}"
+          echo "DEBUG: Ref = ${{ github.ref }}"
+          echo "DEBUG: Repository = ${{ github.repository }}"
       
       - name: Configure Git
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
+          echo "DEBUG: Git config set"
       
-      - name: Sync branches
+      - name: Check and sync branches
         run: |
-          case "${{ github.ref }}" in
-            refs/heads/master)
-              lower_branch="staging"
+          BASE_BRANCH="${{ github.base_ref }}"
+          HEAD_BRANCH="${{ github.head_ref }}"
+          echo "DEBUG: Base branch = $BASE_BRANCH"
+          echo "DEBUG: Head branch = $HEAD_BRANCH"
+          
+          case "$BASE_BRANCH" in
+            "development")
+              upstream_branch="qa"
               ;;
-            refs/heads/staging)
-              lower_branch="qa"
+            "qa")
+              upstream_branch="staging"
               ;;
-            refs/heads/qa)
-              lower_branch="development"
+            "staging")
+              upstream_branch="master"
+              ;;
+            "master")
+              upstream_branch=""
               ;;
           esac
           
-          if [ ! -z "$lower_branch" ]; then
-            git checkout $lower_branch
-            git merge origin/${{ github.ref_name }} --no-edit || {
-              echo "Merge conflict detected"
+          echo "DEBUG: Upstream branch = $upstream_branch"
+          
+          if [ ! -z "$upstream_branch" ]; then
+            echo "DEBUG: Fetching upstream branch $upstream_branch"
+            git fetch origin $upstream_branch
+            echo "DEBUG: Fetch exit code = $?"
+            
+            echo "DEBUG: Running merge-base check"
+            git merge-base --is-ancestor origin/$upstream_branch HEAD
+            MERGE_BASE_RESULT=$?
+            echo "DEBUG: merge-base exit code = $MERGE_BASE_RESULT"
+            
+            if [ $MERGE_BASE_RESULT -ne 0 ]; then
+              echo "ERROR: Your branch ($HEAD_BRANCH) is missing commits from $upstream_branch"
+              echo "Missing commits:"
+              git log --oneline HEAD..origin/$upstream_branch
+              echo "Please run: git pull origin $upstream_branch"
               exit 1
-            }
-            git push origin $lower_branch
-          fi 
+            fi
+          fi
