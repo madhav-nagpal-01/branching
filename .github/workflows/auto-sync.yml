@@ -58,16 +58,23 @@ jobs:
             git fetch origin $upstream_branch
             echo "DEBUG: Fetch exit code = $?"
             
-            echo "DEBUG: Running merge-base check"
-            git merge-base --is-ancestor origin/$upstream_branch HEAD
-            MERGE_BASE_RESULT=$?
-            echo "DEBUG: merge-base exit code = $MERGE_BASE_RESULT"
-            
-            if [ $MERGE_BASE_RESULT -ne 0 ]; then
-              echo "ERROR: Your branch ($HEAD_BRANCH) is missing commits from $upstream_branch"
-              echo "Missing commits:"
-              git log --oneline HEAD..origin/$upstream_branch
-              echo "Please run: git pull origin $upstream_branch"
+            # Try to merge upstream branch into the PR branch
+            echo "DEBUG: Attempting to merge $upstream_branch into $HEAD_BRANCH"
+            if ! git merge origin/$upstream_branch --no-edit; then
+              echo "ERROR: Merge conflicts detected between $HEAD_BRANCH and $upstream_branch"
+              echo "Please manually merge $upstream_branch into your branch and resolve conflicts:"
+              echo "git checkout $HEAD_BRANCH"
+              echo "git pull origin $upstream_branch"
+              git status
               exit 1
             fi
+            
+            # If merge successful, push changes back to the PR branch
+            echo "DEBUG: Pushing merged changes to $HEAD_BRANCH"
+            if ! git push origin HEAD:$HEAD_BRANCH; then
+              echo "ERROR: Failed to push merged changes"
+              exit 1
+            fi
+            
+            echo "✅ Successfully synchronized $HEAD_BRANCH with $upstream_branch"
           fi
