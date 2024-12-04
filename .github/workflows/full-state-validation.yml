@@ -1,0 +1,38 @@
+name: Full State Validation
+
+on:
+  pull_request:
+    branches: [ development, qa, staging, master ]
+
+jobs:
+  full-state-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Check branch state
+        run: |
+          case "${{ github.ref }}" in
+            refs/heads/development)
+              upstream_branch="qa"
+              ;;
+            refs/heads/qa)
+              upstream_branch="staging"
+              ;;
+            refs/heads/staging)
+              upstream_branch="master"
+              ;;
+            refs/heads/master)
+              upstream_branch=""
+              ;;
+          esac
+          
+          if [ ! -z "$upstream_branch" ]; then
+            git fetch origin $upstream_branch
+            if ! git diff --quiet origin/$upstream_branch; then
+              echo "ERROR: Branch content differs from $upstream_branch"
+              exit 1
+            fi
+          fi 
