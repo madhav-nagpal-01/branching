@@ -14,26 +14,36 @@ jobs:
       
       - name: Validate branch synchronization
         run: |
-          # Define branch hierarchy
-          case "${{ github.ref }}" in
-            refs/heads/development)
+          # Get the base branch of the PR
+          BASE_BRANCH="${{ github.base_ref }}"
+          
+          # Define upstream branch based on PR's base branch
+          case "$BASE_BRANCH" in
+            "development")
               upstream_branch="qa"
               ;;
-            refs/heads/qa)
+            "qa")
               upstream_branch="staging"
               ;;
-            refs/heads/staging)
+            "staging")
               upstream_branch="master"
               ;;
-            refs/heads/master)
+            "master")
               upstream_branch=""
               ;;
           esac
           
           if [ ! -z "$upstream_branch" ]; then
+            echo "Checking if $BASE_BRANCH is up-to-date with $upstream_branch"
+            
+            # Fetch all branches
+            git fetch origin $BASE_BRANCH
             git fetch origin $upstream_branch
-            if ! git merge-base --is-ancestor origin/$upstream_branch HEAD; then
-              echo "ERROR: Current branch is missing commits from $upstream_branch"
+            
+            # Check if base branch contains all commits from upstream
+            if ! git merge-base --is-ancestor origin/$upstream_branch origin/$BASE_BRANCH; then
+              echo "ERROR: $BASE_BRANCH is missing commits from $upstream_branch"
+              echo "Please merge $upstream_branch into $BASE_BRANCH first"
               exit 1
             fi
           fi 

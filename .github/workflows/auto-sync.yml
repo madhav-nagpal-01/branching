@@ -19,25 +19,38 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
       
-      - name: Sync branches
+      - name: Check and sync branches
         run: |
-          case "${{ github.ref }}" in
-            refs/heads/master)
-              lower_branch="staging"
+          # Get the base branch of the PR
+          BASE_BRANCH="${{ github.base_ref }}"
+          
+          # Define upstream branch based on PR's base branch
+          case "$BASE_BRANCH" in
+            "development")
+              upstream_branch="qa"
               ;;
-            refs/heads/staging)
-              lower_branch="qa"
+            "qa")
+              upstream_branch="staging"
               ;;
-            refs/heads/qa)
-              lower_branch="development"
+            "staging")
+              upstream_branch="master"
+              ;;
+            "master")
+              upstream_branch=""
               ;;
           esac
           
-          if [ ! -z "$lower_branch" ]; then
-            git checkout $lower_branch
-            git merge origin/${{ github.ref_name }} --no-edit || {
-              echo "Merge conflict detected"
+          if [ ! -z "$upstream_branch" ]; then
+            echo "Checking if $BASE_BRANCH needs sync with $upstream_branch"
+            
+            # Fetch all branches
+            git fetch origin $BASE_BRANCH
+            git fetch origin $upstream_branch
+            
+            # Check if base branch contains all commits from upstream
+            if ! git merge-base --is-ancestor origin/$upstream_branch origin/$BASE_BRANCH; then
+              echo "WARNING: $BASE_BRANCH is not up-to-date with $upstream_branch"
+              echo "This PR cannot be merged until $BASE_BRANCH is synchronized with $upstream_branch"
               exit 1
-            }
-            git push origin $lower_branch
-          fi 
+            fi
+          fi

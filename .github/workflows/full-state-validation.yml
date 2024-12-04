@@ -14,25 +14,37 @@ jobs:
       
       - name: Check branch state
         run: |
-          case "${{ github.ref }}" in
-            refs/heads/development)
+          # Get the base branch of the PR
+          BASE_BRANCH="${{ github.base_ref }}"
+          
+          # Define upstream branch based on PR's base branch
+          case "$BASE_BRANCH" in
+            "development")
               upstream_branch="qa"
               ;;
-            refs/heads/qa)
+            "qa")
               upstream_branch="staging"
               ;;
-            refs/heads/staging)
+            "staging")
               upstream_branch="master"
               ;;
-            refs/heads/master)
+            "master")
               upstream_branch=""
               ;;
           esac
           
           if [ ! -z "$upstream_branch" ]; then
+            echo "Checking if $BASE_BRANCH matches content with $upstream_branch"
+            
+            # Fetch all branches
+            git fetch origin $BASE_BRANCH
             git fetch origin $upstream_branch
-            if ! git diff --quiet origin/$upstream_branch; then
-              echo "ERROR: Branch content differs from $upstream_branch"
+            
+            # Check content difference
+            if ! git diff --quiet origin/$upstream_branch origin/$BASE_BRANCH; then
+              echo "ERROR: $BASE_BRANCH content differs from $upstream_branch"
+              echo "Please merge $upstream_branch into $BASE_BRANCH first"
+              git diff origin/$upstream_branch origin/$BASE_BRANCH --name-status
               exit 1
             fi
-          fi 
+          fi
