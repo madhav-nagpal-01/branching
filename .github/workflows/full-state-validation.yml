@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
       
       - name: Debug Info
         run: |
@@ -23,7 +24,9 @@ jobs:
       - name: Check branch state
         run: |
           BASE_BRANCH="${{ github.base_ref }}"
+          HEAD_BRANCH="${{ github.head_ref }}"
           echo "DEBUG: Base branch = $BASE_BRANCH"
+          echo "DEBUG: Head branch = $HEAD_BRANCH"
           
           case "$BASE_BRANCH" in
             "development")
@@ -43,21 +46,20 @@ jobs:
           echo "DEBUG: Upstream branch = $upstream_branch"
           
           if [ ! -z "$upstream_branch" ]; then
-            echo "DEBUG: Fetching $BASE_BRANCH"
-            git fetch origin $BASE_BRANCH
-            echo "DEBUG: Fetch exit code = $?"
-            
-            echo "DEBUG: Fetching $upstream_branch"
+            echo "DEBUG: Fetching upstream branch $upstream_branch"
             git fetch origin $upstream_branch
             echo "DEBUG: Fetch exit code = $?"
             
             echo "DEBUG: Running diff check"
-            git diff --quiet origin/$upstream_branch origin/$BASE_BRANCH
+            git diff --quiet origin/$upstream_branch HEAD
             DIFF_RESULT=$?
             echo "DEBUG: diff exit code = $DIFF_RESULT"
             
             if [ $DIFF_RESULT -ne 0 ]; then
-              echo "DEBUG: Diff check failed"
+              echo "ERROR: Your branch ($HEAD_BRANCH) has content differences with $upstream_branch"
+              echo "Please run: git pull origin $upstream_branch"
+              echo "Different files:"
+              git diff --name-status origin/$upstream_branch HEAD
               exit 1
             fi
           fi
