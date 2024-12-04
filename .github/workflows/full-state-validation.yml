@@ -12,12 +12,19 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Debug Info
+        run: |
+          echo "DEBUG: Event name = ${{ github.event_name }}"
+          echo "DEBUG: Base ref = ${{ github.base_ref }}"
+          echo "DEBUG: Head ref = ${{ github.head_ref }}"
+          echo "DEBUG: Ref = ${{ github.ref }}"
+          echo "DEBUG: Repository = ${{ github.repository }}"
+      
       - name: Check branch state
         run: |
-          # Get the base branch of the PR
           BASE_BRANCH="${{ github.base_ref }}"
+          echo "DEBUG: Base branch = $BASE_BRANCH"
           
-          # Define upstream branch based on PR's base branch
           case "$BASE_BRANCH" in
             "development")
               upstream_branch="qa"
@@ -33,18 +40,24 @@ jobs:
               ;;
           esac
           
+          echo "DEBUG: Upstream branch = $upstream_branch"
+          
           if [ ! -z "$upstream_branch" ]; then
-            echo "Checking if $BASE_BRANCH matches content with $upstream_branch"
-            
-            # Fetch all branches
+            echo "DEBUG: Fetching $BASE_BRANCH"
             git fetch origin $BASE_BRANCH
-            git fetch origin $upstream_branch
+            echo "DEBUG: Fetch exit code = $?"
             
-            # Check content difference
-            if ! git diff --quiet origin/$upstream_branch origin/$BASE_BRANCH; then
-              echo "ERROR: $BASE_BRANCH content differs from $upstream_branch"
-              echo "Please merge $upstream_branch into $BASE_BRANCH first"
-              git diff origin/$upstream_branch origin/$BASE_BRANCH --name-status
+            echo "DEBUG: Fetching $upstream_branch"
+            git fetch origin $upstream_branch
+            echo "DEBUG: Fetch exit code = $?"
+            
+            echo "DEBUG: Running diff check"
+            git diff --quiet origin/$upstream_branch origin/$BASE_BRANCH
+            DIFF_RESULT=$?
+            echo "DEBUG: diff exit code = $DIFF_RESULT"
+            
+            if [ $DIFF_RESULT -ne 0 ]; then
+              echo "DEBUG: Diff check failed"
               exit 1
             fi
           fi

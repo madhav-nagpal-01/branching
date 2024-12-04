@@ -14,17 +14,25 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
+      - name: Debug Info
+        run: |
+          echo "DEBUG: Event name = ${{ github.event_name }}"
+          echo "DEBUG: Base ref = ${{ github.base_ref }}"
+          echo "DEBUG: Head ref = ${{ github.head_ref }}"
+          echo "DEBUG: Ref = ${{ github.ref }}"
+          echo "DEBUG: Repository = ${{ github.repository }}"
+      
       - name: Configure Git
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
+          echo "DEBUG: Git config set"
       
       - name: Check and sync branches
         run: |
-          # Get the base branch of the PR
           BASE_BRANCH="${{ github.base_ref }}"
+          echo "DEBUG: Base branch = $BASE_BRANCH"
           
-          # Define upstream branch based on PR's base branch
           case "$BASE_BRANCH" in
             "development")
               upstream_branch="qa"
@@ -40,17 +48,24 @@ jobs:
               ;;
           esac
           
+          echo "DEBUG: Upstream branch = $upstream_branch"
+          
           if [ ! -z "$upstream_branch" ]; then
-            echo "Checking if $BASE_BRANCH needs sync with $upstream_branch"
-            
-            # Fetch all branches
+            echo "DEBUG: Fetching $BASE_BRANCH"
             git fetch origin $BASE_BRANCH
-            git fetch origin $upstream_branch
+            echo "DEBUG: Fetch exit code = $?"
             
-            # Check if base branch contains all commits from upstream
-            if ! git merge-base --is-ancestor origin/$upstream_branch origin/$BASE_BRANCH; then
-              echo "WARNING: $BASE_BRANCH is not up-to-date with $upstream_branch"
-              echo "This PR cannot be merged until $BASE_BRANCH is synchronized with $upstream_branch"
+            echo "DEBUG: Fetching $upstream_branch"
+            git fetch origin $upstream_branch
+            echo "DEBUG: Fetch exit code = $?"
+            
+            echo "DEBUG: Running merge-base check"
+            git merge-base --is-ancestor origin/$upstream_branch origin/$BASE_BRANCH
+            MERGE_BASE_RESULT=$?
+            echo "DEBUG: merge-base exit code = $MERGE_BASE_RESULT"
+            
+            if [ $MERGE_BASE_RESULT -ne 0 ]; then
+              echo "DEBUG: Merge base check failed"
               exit 1
             fi
           fi
