@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
       
       - name: Debug Info
         run: |
@@ -23,7 +24,9 @@ jobs:
       - name: Validate branch synchronization
         run: |
           BASE_BRANCH="${{ github.base_ref }}"
+          HEAD_BRANCH="${{ github.head_ref }}"
           echo "DEBUG: Base branch = $BASE_BRANCH"
+          echo "DEBUG: Head branch = $HEAD_BRANCH"
           
           case "$BASE_BRANCH" in
             "development")
@@ -43,21 +46,19 @@ jobs:
           echo "DEBUG: Upstream branch = $upstream_branch"
           
           if [ ! -z "$upstream_branch" ]; then
-            echo "DEBUG: Fetching $BASE_BRANCH"
-            git fetch origin $BASE_BRANCH
-            echo "DEBUG: Fetch exit code = $?"
-            
-            echo "DEBUG: Fetching $upstream_branch"
+            echo "DEBUG: Fetching upstream branch $upstream_branch"
             git fetch origin $upstream_branch
             echo "DEBUG: Fetch exit code = $?"
             
             echo "DEBUG: Running merge-base check"
-            git merge-base --is-ancestor origin/$upstream_branch origin/$BASE_BRANCH
+            git merge-base --is-ancestor origin/$upstream_branch HEAD
             MERGE_BASE_RESULT=$?
             echo "DEBUG: merge-base exit code = $MERGE_BASE_RESULT"
             
             if [ $MERGE_BASE_RESULT -ne 0 ]; then
-              echo "DEBUG: Merge base check failed"
+              echo "ERROR: Your branch ($HEAD_BRANCH) is missing commits from $upstream_branch"
+              echo "Please run: git pull origin $upstream_branch"
+              git log --oneline HEAD..origin/$upstream_branch
               exit 1
             fi
           fi
