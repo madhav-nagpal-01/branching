@@ -1,0 +1,43 @@
+name: Automatic Branch Synchronization
+
+on:
+  pull_request:
+    branches: [ development, qa, staging, master ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+      
+      - name: Sync branches
+        run: |
+          case "${{ github.ref }}" in
+            refs/heads/master)
+              lower_branch="staging"
+              ;;
+            refs/heads/staging)
+              lower_branch="qa"
+              ;;
+            refs/heads/qa)
+              lower_branch="development"
+              ;;
+          esac
+          
+          if [ ! -z "$lower_branch" ]; then
+            git checkout $lower_branch
+            git merge origin/${{ github.ref_name }} --no-edit || {
+              echo "Merge conflict detected"
+              exit 1
+            }
+            git push origin $lower_branch
+          fi 
